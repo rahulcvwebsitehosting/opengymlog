@@ -1,8 +1,7 @@
 # Third-party notices
 
 openGym — Copyright (c) 2024 Rahul Shyam.
-Based on the original openGym by Duarte Santos.
-openGym's own code is licensed under the **MIT License** (see [LICENSE](LICENSE)).
+openGym's own code is licensed under the **MIT License** (see LICENSE).
 
 ## Body diagram geometry
 
@@ -32,8 +31,8 @@ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 ```
 
 ## Exercise data & media
@@ -41,17 +40,8 @@ SOFTWARE.
 The exercise names, instructions (English in `frontend/src/lib/exercises-data.js`, other
 languages in `frontend/src/instr/`, regenerated via `scripts/build-instructions.mjs`), images
 and animations (fetched into `media/` at build time) come from
-[**hasaneyldrm/exercises-dataset**](https://github.com/hasaneyldrm/exercises-dataset)
+ [**hasaneyldrm/exercises-dataset**]
 and are **not** covered by openGym's MIT license — they remain under that dataset's own terms.
 The media files are not distributed in this repository; they are downloaded from the upstream
 source on first run. If you redistribute openGym with the media included, review the upstream
 license first.
-
-## Credits
-
-- Original openGym by **Duarte Santos** — https://github.com/DuarteSantos8/openGym
-- Modifications and new features by **Rahul Shyam** — https://github.com/rahulcvwebsitehosting
-  - Username/password authentication (replacing passkeys-only)
-  - OIDC-ready authentication architecture
-  - Mobile app server sync support
-  - MIT license migration

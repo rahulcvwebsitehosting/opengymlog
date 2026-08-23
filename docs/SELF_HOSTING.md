@@ -1,9 +1,8 @@
 # Self-hosting openGym
 
-openGym is two small containers (a web server and an API) plus a folder of your data.
-This guide takes you from "just cloned it" to "using it from my phone over the internet".
+openGym runs in two small Docker containers (a web server and an API) plus a folder where your data is stored. This guide takes you from "just cloned it" to "using it from my phone".
 
-## 1. Run it locally (5 minutes)
+## 1. Run it locally
 
 Requirements: [Docker](https://docs.docker.com/get-docker/) with the Compose plugin.
 
@@ -11,11 +10,11 @@ Requirements: [Docker](https://docs.docker.com/get-docker/) with the Compose plu
 git clone https://github.com/rahulcvwebsitehosting/opengymlog
 cd opengymlog
 cp .env.example .env
-docker compose pull   # prebuilt images from ghcr.io (amd64 + arm64) — or skip and build from source
+docker compose pull   # download prebuilt images — or skip and build from source
 docker compose up -d
 ```
 
-- First start downloads the exercise images/GIFs (~140 MB) once into `app/img` and `app/gif`.
+- First start downloads exercise images/GIFs (~140 MB) once into the app.
 - Open **http://localhost:8080** and create an account with username/password (or use passkey if you prefer).
 - Rather build from source than pull prebuilt images? Skip `docker compose pull` and run
   `docker compose up -d --build` instead — no Node needed locally either way.
@@ -29,7 +28,7 @@ curl http://localhost:8080/api/health      # {"ok":true,...}
 
 Logs: `docker compose logs -f`. Stop: `docker compose down`.
 
-## 2. Understand the authentication options
+## 2. Authentication options
 
 openGym now supports **username/password** as the primary authentication method (with passkeys as an optional alternative).
 
@@ -43,34 +42,16 @@ So `http://localhost:8080` works on the machine running Docker, but **another de
 
 (You can still open it over LAN in **guest mode**, which stores data only in that browser, or use username/password.)
 
-## 3. Expose it over HTTPS on your own domain
+## 3. Expose it over HTTPS
 
-If you want to use passkeys from your phone, or just want proper HTTPS, put openGym behind something that terminates TLS for a hostname you control, then point it at the `web` container. Pick whichever you already run:
+If you want to use passkeys from your phone, or just want proper HTTPS, put openGym behind something that terminates TLS for a hostname you control, then point it at the `web` container.
 
-### Option A — Cloudflare Tunnel (no open ports)
-
-1. Create a tunnel and route `gym.example.com` → `http://<docker-host>:8080`.
-2. Cloudflare gives you HTTPS automatically.
-
-### Option B — Caddy (automatic Let's Encrypt)
-
-```caddy
-gym.example.com {
-    reverse_proxy localhost:8080
-}
-```
-
-### Option C — Traefik / nginx / Nginx Proxy Manager
-
-Route `gym.example.com` (HTTPS) → `web:80` (or `<docker-host>:8080`). Any reverse proxy works —
-openGym only needs the browser to reach it over `https://gym.example.com`.
-
-Then set your domain in `.env` and restart:
+Set your domain in `.env` and restart:
 
 ```bash
 # .env
-RP_ID=gym.example.com
-ORIGIN=https://gym.example.com
+RP_ID=your-domain.com
+ORIGIN=https://your-domain.com
 WEB_PORT=8080
 RP_NAME=openGym
 ```
@@ -79,7 +60,7 @@ RP_NAME=openGym
 docker compose up -d
 ```
 
-Visit `https://gym.example.com`, create your account, and add it to your home screen
+Visit `https://your-domain.com`, create your account, and add it to your home screen
 (iOS: Share → Add to Home Screen · Android: ⋮ → Add to Home screen).
 
 > Changing `RP_ID` later invalidates existing passkeys (they were bound to the old hostname).
@@ -105,7 +86,7 @@ revoking invite codes. Existing accounts keep working when you switch invite-onl
 is gated by your passkey and enforced server-side, so it needs no separate login.
 
 Prefer to keep the whole thing off the open internet? A VPN or an auth proxy (Authelia, Cloudflare
-Access…) in front still works, and composes with the above.
+Access…) in front still works.
 
 ## 5. Backups
 
@@ -154,19 +135,6 @@ docker compose up -d --build
 
 The app shell is versioned (`?v=N`) so clients pick up changes on next load. Your `./data` and the
 downloaded media are untouched.
-
-## Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| No passkey prompt on my phone | You're on `http://` or an IP, not HTTPS. Set up a domain (section 3). Or use username/password instead. |
-| "verification failed" on login | `RP_ID`/`ORIGIN` don't match the URL in the address bar. Make them exact, restart. |
-| Media didn't download | `docker compose logs media`. Re-run `docker compose up -d`, or run `./scripts/fetch-media.sh`. |
-| Port 8080 already used | Set `WEB_PORT=9090` in `.env` (and update `ORIGIN` for local testing). |
-| No "Notifications" option in Settings | Requires a signed-in profile and HTTPS (or `localhost`) — guest mode and plain HTTP over LAN can't subscribe. |
-| Day reminder fires at the wrong time | Toggle it off and on in Settings so it re-detects your browser's timezone (also happens automatically on every app load — see section 6). |
-| Want to reset a stuck login | Delete the cookie in your browser; sessions are just signed cookies. |
-| `docker compose pull` fails with "denied" / "unauthorized" | The prebuilt images aren't published yet, or need to be, or the GHCR package is still private — build from source instead (`docker compose up -d --build`). |
 
 ## Mobile app server sync
 

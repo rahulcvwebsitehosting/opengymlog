@@ -1,4 +1,4 @@
-package ch.duartesantos.opengym;
+package com.rahulcvwebsitehosting.opengym;
 
 import com.getcapacitor.BridgeActivity;
 

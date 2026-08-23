@@ -44,6 +44,14 @@ frontend/ios/App/build/
 # Vite
 frontend/.vite/
 
+# Android signing
+*.keystore
+*.jks
+*.idsig
+# APK - ignore root but keep website one for download
+*.apk
+!website/openGym.apk
+
 # Docker
 *.tar
 *.tar.gz

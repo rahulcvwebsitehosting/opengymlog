@@ -52,9 +52,9 @@ cd frontend && npm test
 
 | You have | Goes to |
 | --- | --- |
-| A question, or self-hosting that won't behave | [Discussions → Q&A](https://github.com/DuarteSantos8/openGym/discussions/categories/q-a) |
-| An idea you're not sure about yet | [Discussions → Ideas](https://github.com/DuarteSantos8/openGym/discussions/categories/ideas) |
-| A reproducible bug | [Issues](https://github.com/DuarteSantos8/openGym/issues) |
+| A question, or self-hosting that won't behave | [Discussions → Q&A](https://github.com/rahulcvwebsitehosting/opengymlog/discussions/categories/q-a) |
+| An idea you're not sure about yet | [Discussions → Ideas](https://github.com/rahulcvwebsitehosting/opengymlog/discussions/categories/ideas) |
+| A reproducible bug | [Issues](https://github.com/rahulcvwebsitehosting/opengymlog/issues) |
 | A change you've already built | A pull request |
 
 An answered question in Q&A is worth more than the same answer buried in a closed issue — the
@@ -66,4 +66,4 @@ Open an issue with: what you did, what you expected, what happened, and your bro
 about login/passkeys, include your `RP_ID`/`ORIGIN` (not the `data/` contents) — most login
 issues are an origin mismatch.
 
-By contributing you agree your work is licensed under the project's [GNU AGPL v3.0](LICENSE).
+By contributing you agree your work is licensed under the project's [MIT License](LICENSE).
