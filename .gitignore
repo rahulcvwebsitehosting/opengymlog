@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+frontend/dist/
+
+# Generated media (downloaded at build time)
+media/
+
+# Data directory (contains user data, secrets)
+data/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Capacitor
+frontend/android/app/build/
+frontend/android/.gradle/
+frontend/ios/App/Pods/
+frontend/ios/App/build/
+
+# Vite
+frontend/.vite/
+
+# Docker
+*.tar
+*.tar.gz
