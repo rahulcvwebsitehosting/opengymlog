@@ -6,8 +6,8 @@ dist/
 build/
 frontend/dist/
 
-# Generated media (downloaded at build time)
-media/
+# Generated media - now tracked via Git LFS for easy local clone
+# media/
 
 # Data directory (contains user data, secrets)
 data/

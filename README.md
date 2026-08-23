@@ -66,18 +66,19 @@ openGym is an app you run on your own equipment. It started as a simple way to l
 
 ## Quick start (self-host)
 
-You need [Docker](https://docs.docker.com/get-docker/) with Compose.
+You need [Docker](https://docs.docker.com/get-docker/) with Compose and [Git LFS](https://git-lfs.com).
 
 ```bash
 git clone https://github.com/rahulcvwebsitehosting/opengymlog
 cd opengymlog
+git lfs pull   # download exercise images and GIFs (~140 MB, tracked via LFS)
 cp .env.example .env
 docker compose pull   # download prebuilt images — or skip and build from source
 docker compose up -d
 ```
 
 Open **http://localhost:8080**, tap **Create account**, and you're in.
-First launch downloads exercise media (~140 MB) once.
+Exercise media (1,324 images + GIFs) is already in the repo via Git LFS, so no extra download is needed. If you cloned without LFS, the first launch will still fetch it automatically.
 Prefer building the images yourself? Drop the `pull` step and run
 `docker compose up -d --build` — you don't need Node or a build step locally either way.
 
