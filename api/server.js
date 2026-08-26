@@ -49,8 +49,32 @@ function atomicWrite(file, content) {
   fs.renameSync(tmp, file);
 }
 const stateFile = uid => path.join(DATA, 'state-' + uid.replace(/[^a-zA-Z0-9_-]/g, '') + '.json');
-function readState(uid) {
-  try { return JSON.parse(fs.readFileSync(stateFile(uid), 'utf8')); } catch { return null; }
+// State files are read constantly (reminder tick, admin dashboard, every sync) but only
+// change on a write, so cache the parse keyed off the file's mtime — atomicWrite's rename
+// always bumps it, which is what keeps the cache honest.
+const stateCache = new Map();
+function readStateCached(uid) {
+  const file = stateFile(uid);
+  let mtimeMs;
+  try { mtimeMs = fs.statSync(file).mtimeMs; } catch { stateCache.delete(uid); return null; }
+  const c = stateCache.get(uid);
+  if (c && c.mtimeMs === mtimeMs) return c.S;
+  try {
+    const S = JSON.parse(fs.readFileSync(file, 'utf8'));
+    stateCache.set(uid, { mtimeMs, S });
+    return S;
+  } catch { stateCache.delete(uid); return null; }
+}
+// The state blob is opaque to the server, but not *anything* goes: the fields the app and
+// the admin dashboard interpret must at least have the right shape, so a broken or hostile
+// client can't poison a profile with "workouts": 42.
+const STATE_ARRAYS = ['workouts', 'bodyweight', 'routines', 'customEx'];
+const STATE_OBJECTS = ['week', 'dayPlan', 'exWeights', 'userNotes', 'reminder'];
+function validState(s) {
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return false;
+  for (const k of STATE_ARRAYS) if (s[k] != null && !Array.isArray(s[k])) return false;
+  for (const k of STATE_OBJECTS) if (s[k] != null && (typeof s[k] !== 'object' || Array.isArray(s[k]))) return false;
+  return true;
 }
 
 /* ---------- push notifications (Web Push / VAPID) ---------- */
@@ -112,7 +136,7 @@ function userNow(tz) {
 setInterval(() => {
   for (const user of db.users) {
     if (!db.subs.some(s => s.userId === user.id)) continue;
-    const S = readState(user.id);
+    const S = readStateCached(user.id);
     if (!S?.reminder?.on) continue;
     const now = userNow(S.reminder.tz || 'UTC');
     if (!now || S.reminder.time !== now.hhmm) continue;
@@ -170,9 +194,13 @@ function readSession(req) {
   return user;
 }
 
-/* ---------- JWT for mobile/app ---------- */
+/* ---------- JWT for mobile/app ----------
+   The token only proves *who* the caller claims to be; the actual user record always comes
+   from the db. That matters three ways: a disabled account stops working immediately, the
+   admin flag is read live (removing a uid from ADMIN_UIDS revokes it), and bumping the
+   session version ("sign out everywhere") invalidates tokens, not just cookies. */
 function makeJWT(user) {
-  return jwt.sign({ uid: user.id, name: user.name, admin: isAdmin(user) }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+  return jwt.sign({ uid: user.id, sv: sessionVersion(user) }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
 }
 function verifyJWT(token) {
   try {
@@ -182,7 +210,13 @@ function verifyJWT(token) {
 function readJWT(req) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith('Bearer ')) return null;
-  return verifyJWT(auth.slice(7));
+  const claims = verifyJWT(auth.slice(7));
+  if (!claims?.uid) return null;
+  const user = db.users.find(u => u.id === claims.uid);
+  if (!user) return null;
+  const claimed = claims.sv == null ? 0 : Number(claims.sv);
+  if (!Number.isInteger(claimed) || claimed !== sessionVersion(user)) return null;
+  return user;
 }
 function readAuth(req) {
   return readSession(req) || readJWT(req);
@@ -230,7 +264,11 @@ const clearCookie = `gymsid=; Path=/; Max-Age=0; HttpOnly;${SECURE} SameSite=Lax
 
 /* ---------- challenge store (in-memory, 5 min TTL) ---------- */
 const challenges = new Map();
+const MAX_CHALLENGES = 500;
 function putChallenge(data) {
+  // Bounded: an unauthenticated client can ask for as many challenges as it likes, so the
+  // map must not grow without limit. Insertion order means this evicts the oldest first.
+  if (challenges.size >= MAX_CHALLENGES) challenges.delete(challenges.keys().next().value);
   const cid = crypto.randomBytes(16).toString('base64url');
   challenges.set(cid, { ...data, exp: Date.now() + 5 * 60000 });
   return cid;
@@ -254,6 +292,23 @@ function livePresence(uid) {
 }
 setInterval(() => { for (const [k, v] of presence) if (Date.now() - v.updatedAt > PRESENCE_TTL) presence.delete(k); }, 30000).unref();
 
+/* ---------- rate limiting (fixed window, per IP + action) ----------
+   Self-host scale, so a small in-memory bucket per caller is plenty. It exists mostly to make
+   password brute-forcing and challenge-spam uneconomical, not to stop a determined DDoS. */
+const buckets = new Map();
+function clientIp(req) {
+  return (String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket.remoteAddress || '?';
+}
+function rateLimited(action, req, limit, windowMs) {
+  const key = action + ':' + clientIp(req);
+  const now = Date.now();
+  const b = buckets.get(key);
+  if (!b || now - b.start >= windowMs) { buckets.set(key, { start: now, n: 1 }); return false; }
+  return ++b.n > limit;
+}
+setInterval(() => { const now = Date.now(); for (const [k, b] of buckets) if (now - b.start > 600000) buckets.delete(k); }, 60000).unref();
+const tooMany = res => json(res, 429, { error: 'too many attempts — wait a minute and try again' });
+
 /* ---------- routes ---------- */
 const routes = {
   'GET /api/health': async (req, res) => json(res, 200, { ok: true, users: db.users.length }),
@@ -268,6 +323,7 @@ const routes = {
 
   // Username/password registration
   'POST /api/auth/register': async (req, res) => {
+    if (rateLimited('register', req, 5, 600000)) return tooMany(res);
     const body = await readBody(req);
     const username = String(body.username || '').trim().toLowerCase().slice(0, 40);
     const name = String(body.name || '').trim().slice(0, 40);
@@ -299,6 +355,7 @@ const routes = {
 
   // Username/password login
   'POST /api/auth/login': async (req, res) => {
+    if (rateLimited('login', req, 10, 60000)) return tooMany(res);
     const body = await readBody(req);
     const username = String(body.username || '').trim().toLowerCase();
     const password = String(body.password || '');
@@ -315,6 +372,7 @@ const routes = {
 
   // Passkey registration (kept for backward compatibility)
   'POST /api/register/options': async (req, res) => {
+    if (rateLimited('reg-options', req, 20, 60000)) return tooMany(res);
     const body = await readBody(req);
     const name = String(body.name || '').trim().slice(0, 40);
     if (!name) return json(res, 400, { error: 'name required' });
@@ -369,6 +427,7 @@ const routes = {
   },
 
   'POST /api/login/options': async (req, res) => {
+    if (rateLimited('login-options', req, 20, 60000)) return tooMany(res);
     const options = await generateAuthenticationOptions({
       rpID: RP_ID, userVerification: 'preferred', allowCredentials: []
     });
@@ -420,19 +479,17 @@ const routes = {
   'GET /api/data': async (req, res) => {
     const user = requireAuth(req, res);
     if (!user) return;
-    try {
-      const state = JSON.parse(fs.readFileSync(stateFile(user.id), 'utf8'));
-      json(res, 200, { state });
-    } catch { json(res, 200, { state: null }); }
+    json(res, 200, { state: readStateCached(user.id) });
   },
 
   'PUT /api/data': async (req, res) => {
     const user = requireAuth(req, res);
     if (!user) return;
     const body = await readBody(req);
-    if (!body.state || typeof body.state !== 'object') return json(res, 400, { error: 'state required' });
+    if (!validState(body.state)) return json(res, 400, { error: 'state required' });
     delete body.state.active;
     atomicWrite(stateFile(user.id), JSON.stringify(body.state));
+    stateCache.delete(user.id);
     json(res, 200, { ok: true, ts: body.state._ts || null });
   },
 
@@ -503,7 +560,7 @@ const routes = {
   'GET /api/admin/users': async (req, res) => {
     if (!requireAdmin(req, res)) return;
     const users = db.users.map(u => {
-      const S = readState(u.id) || {};
+      const S = readStateCached(u.id) || {};
       const workouts = S.workouts || [];
       const last = workouts[workouts.length - 1];
       return {
@@ -524,7 +581,7 @@ const routes = {
     const id = new URL(req.url, 'http://x').searchParams.get('id');
     const u = db.users.find(x => x.id === id);
     if (!u) return json(res, 404, { error: 'no such user' });
-    const S = readState(u.id) || {};
+    const S = readStateCached(u.id) || {};
     json(res, 200, {
       user: { id: u.id, name: u.name, username: u.username || null, created: u.created || null, disabled: !!u.disabled, admin: isAdmin(u), invitedBy: u.invitedBy || null },
       unit: S.unit || 'kg',

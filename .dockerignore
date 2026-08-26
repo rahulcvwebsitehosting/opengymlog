@@ -1,0 +1,22 @@
+# Keep the web image build context small — none of this is needed by `vite build`.
+.git
+.gitattributes
+.github
+data
+media
+assets
+docs
+scripts
+website
+*.apk
+*.apk.idsig
+Dockerfile
+docker-compose.yml
+
+api/node_modules
+frontend/node_modules
+frontend/dist
+frontend/android
+frontend/ios
+frontend/resources
+node_modules

@@ -24,7 +24,14 @@ export async function api(path, opts = {}) {
   return data
 }
 
-const bufToB64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+// Loop, not `String.fromCharCode(...bytes)`: spreading a large buffer into the call stack
+// blows past the argument limit. WebAuthn payloads are small today, but this costs nothing.
+const bufToB64u = buf => {
+  const bytes = new Uint8Array(buf)
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
 const b64uToBuf = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)).buffer
 
 function toCreationOptions(o) {

@@ -12,7 +12,7 @@
 // Like the demo build, MOBILE is replaced at build time, so all of this folds away in
 // web bundles; the Capacitor plugins are only ever imported behind it.
 import { t } from './i18n.js'
-import { api, setAuthToken, getAuthToken } from './api.js'
+import { api, setAuthToken } from './api.js'
 
 export const MOBILE = import.meta.env.VITE_MOBILE === '1'
 
@@ -95,23 +95,9 @@ export async function shareExport(json, filename) {
   await Share.share({ title: filename, url: w.uri })
 }
 
-// Sync state with server if authenticated
-export async function syncWithServer(S, push = true) {
-  const token = getAuthToken()
-  if (!token) return false
-  try {
-    if (push) {
-      await api('/api/data', { method: 'PUT', body: JSON.stringify({ state: S }) })
-    } else {
-      const { state } = await api('/api/data')
-      return state
-    }
-    return true
-  } catch (e) {
-    console.error('Server sync failed:', e)
-    return false
-  }
-}
+// Sync happens through the store's pushState/pullState (PUT/GET /api/data with the bearer
+// token attached by api()) — the same path the web build uses, so there is exactly one
+// write per change instead of two racing ones.
 
 // Login with username/password on mobile
 export async function mobileLogin(username, password) {
@@ -129,11 +115,5 @@ export async function mobileRegister(username, name, password, code = '') {
   return user
 }
 
-// Logout on mobile
-export async function mobileLogout() {
-  const token = getAuthToken()
-  if (token) {
-    try { await api('/api/logout', { method: 'POST', body: '{}' }) } catch { /* ignore */ }
-  }
-  await clearToken()
-}
+// Sign-out lives in the store (clearLocalSession): it clears the token file via clearToken()
+// above, so web and mobile share one code path.

@@ -1,6 +1,7 @@
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { webauthnOK, passkeyLogin, passkeyRegister, loginWithPassword, registerWithPassword, api, BIO, setAuthToken } from '../lib/api.js'
+import { MOBILE, mobileLogin, mobileRegister } from '../lib/mobile.js'
 import { hasData } from '../store/useStore.js'
 import { t } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
@@ -29,12 +30,18 @@ function LoginForm({ close }) {
     try {
       if (isRegister) {
         if (password !== confirmPassword) { setError('Passwords do not match'); return }
-        const u = await registerWithPassword(username.trim().toLowerCase(), name.trim(), password, code.trim().toUpperCase())
+        // Mobile persists the token to a file (WebView memory doesn't survive restarts);
+        // the web build rides on the session cookie alone.
+        const u = MOBILE
+          ? await mobileRegister(username.trim().toLowerCase(), name.trim(), password, code.trim().toUpperCase())
+          : await registerWithPassword(username.trim().toLowerCase(), name.trim(), password, code.trim().toUpperCase())
         setUser(u); close()
         if (hasData(useStore.getState().S)) { await pushState(); useUI.getState().toast(t('Profile created — data from this device moved into it')) }
         else { await pullState(); useUI.getState().toast(t('Welcome, {0}', u.name)) }
       } else {
-        const u = await loginWithPassword(username.trim().toLowerCase(), password)
+        const u = MOBILE
+          ? await mobileLogin(username.trim().toLowerCase(), password)
+          : await loginWithPassword(username.trim().toLowerCase(), password)
         setUser(u); await pullState(); close()
         useUI.getState().toast(t('Welcome back, {0}', u.name))
       }
